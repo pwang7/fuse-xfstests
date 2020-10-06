@@ -96,3 +96,43 @@ _scratch_mkfs_gofuse_loopback_sized()
 	_scratch_mkfs_gocryptfs_sized $1 $2
 	rm -f $2/gocryptfs.conf $2/gocryptfs.diriv
 }
+
+
+# Mount DatenLord
+_fuse_datenlord_mount()
+{
+	local dir=$1
+	local mnt=$2
+	# $3 ... -o
+	# $4 ... remount,ro / nosuid / etc
+
+	if [[ "$4" == *"remount"* ]]; then
+		fusermount -u $2
+	fi
+
+	# Abort on "transport endpoint not connected"
+	stat $dir > /dev/null || return 1
+
+	# Check that the executable is available
+	local datenlord=../target/debug/async_fuse
+	if ! type $datenlord > /dev/null; then
+		type $datenlord
+		return 1
+	fi
+
+	#loopback -allow-other -q $mnt $dir &> /dev/tty &
+	RUST_LOG=debug $datenlord -m $mnt &> datenlord-fuse.log &
+	# Wait until loopback has mounted itself.
+	# Ugly, but works.
+	sleep 0.1
+	while ! mountpoint $mnt > /dev/null ; do
+		sleep 0.1
+		if [[ -z $(jobs -r) ]]; then
+			echo "_fuse_datenlord_mount: child died"
+			return 1
+		fi
+	done
+	disown
+}
+
+# TODO: DatenLord support check FS, sratch mkfs, re-mount

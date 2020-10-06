@@ -1,0 +1,42 @@
+#!/bin/bash
+
+MYNAME=$(basename "$0")
+
+if [[ $EUID -ne 0 ]]; then
+	echo "must run as root"
+	exit 1
+fi
+
+export PATH=$PATH:/usr/local/bin
+
+# Try to keep the machine usable while the tests are running.
+renice 19 $$ > /dev/null
+
+echo "fuse-xfstests $(git rev-parse --abbrev-ref HEAD)/$(git rev-parse --short HEAD)"
+date -u
+echo
+
+# Test root dir
+R=/var/tmp/fuse-xfstests/$MYNAME
+
+export TEST_DEV=$R/testd
+export TEST_DIR=$R/testd
+
+export SCRATCH_DEV=$R/scratchd
+export SCRATCH_MNT=$R/scratchd
+
+mkdir -p $TEST_DEV $TEST_DIR $SCRATCH_DEV $SCRATCH_MNT || exit
+
+if [[ $MYNAME == check-datenlord ]]; then
+	type ../target/debug/async_fuse
+	export FSTYP=fuse.datenlord
+else
+	echo "unknown mode of operation: $MYNAME"
+	exit 1
+fi
+
+SECONDS=0
+./check $*
+RET=$?
+echo "Runtime was $SECONDS seconds, exit code $RET"
+exit $RET
